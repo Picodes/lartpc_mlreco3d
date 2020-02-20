@@ -16,16 +16,20 @@ class EncoderModel(torch.nn.Module):
         #Take the parameters from the config
         self._dimension = model_config.get('dimension', 3)
         self.num_strides = model_config.get('num_stride', 4)
-        self.m =  model_config.get('feat_per_pixel', 4)
+        self.final_number_features =  model_config.get('feat_per_pixel', 4)
         self.nInputFeatures = model_config.get('input_feat_enc', 1)
         self.leakiness = model_config.get('leakiness_enc', 0)
         self.spatial_size = model_config.get('inp_spatial_size', 1024) #Must be a power of 2
         
         
-        self.out_spatial_size = int(self.spatial_size/4**(self.num_strides-1))
-        self.output = self.m*self.out_spatial_size**3       
+        self.initial_features_number = 1
         
-        nPlanes = [self.m for i in range(1, self.num_strides+1)]  # UNet number of features per level, was m*i        
+        self.out_spatial_size = int(self.spatial_size/4**(self.num_strides-1))
+        self.output = self.final_number_features*self.out_spatial_size**3   
+        
+        # UNet number of features per level, was m*i
+        nPlanes = [max(self.initial_features_number,int((i-1)*self.final_number_features/self.num_strides)) for i in range(1, self.num_strides+1)]  
+        
         kernel_size = 2
         downsample = [kernel_size, 2]  # [filter size, filter stride]
        
@@ -33,7 +37,7 @@ class EncoderModel(torch.nn.Module):
         #Input for tpc voxels
         self.input = scn.Sequential().add(
            scn.InputLayer(self._dimension, self.spatial_size, mode=3)).add(
-           scn.SubmanifoldConvolution(self._dimension, self.nInputFeatures, self.m, 3, False)) # Kernel size 3, no bias
+           scn.SubmanifoldConvolution(self._dimension, self.nInputFeatures, self.final_number_features, 3, False)) # Kernel size 3, no bias
         self.concat = scn.JoinTable()
         
         # Encoding TPC
