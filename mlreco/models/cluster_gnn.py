@@ -75,7 +75,7 @@ class ClustEdgeGNN(torch.nn.Module):
         Prepares particle clusters and feed them to the GNN model.
 
         Args:
-            data ([torch.tensor]): (N,5-6) [x, y, z, batchid, (value,) id]
+            data ([torch.tensor]): (N,7 or more) [x, y, z, batchid, (value,) id, groupid, shape]
         Returns:
             dict:
                 'edge_pred' (torch.tensor): (E,2) Two-channel edge predictions
@@ -113,7 +113,7 @@ class ClustEdgeGNN(torch.nn.Module):
         dist_mat = None
         if self.edge_max_dist > 0 or self.network == 'mst':
             dist_mat = inter_cluster_distance(data[:,:3], clusts, self.edge_dist_metric)
-
+        
         # Form the requested network
         if len(clusts) == 1:
             edge_index = np.empty((2,0))
@@ -132,7 +132,7 @@ class ClustEdgeGNN(torch.nn.Module):
         # Skip if there is less than two edges (fails batchnorm)
         if edge_index.shape[1] < 2:
             return {}
-
+        
         # Obtain node and edge features
         x = self.node_encoder(data, clusts)
         e = self.edge_encoder(data, clusts, edge_index)

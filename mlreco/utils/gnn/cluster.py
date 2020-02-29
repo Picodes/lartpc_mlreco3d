@@ -16,11 +16,11 @@ def form_clusters(data, min_size=-1):
     clusts = []
     for b in data[:, 3].unique():
         binds = torch.nonzero(data[:, 3] == b).flatten()
-        for c in data[binds,5].unique():
+        for c in data[binds,-3].unique():
             # Skip if the cluster ID is -1 (not defined)
             if c < 0:
                 continue
-            clust = torch.nonzero(data[binds,5] == c).flatten()
+            clust = torch.nonzero(data[binds,-3] == c).flatten()
             if len(clust) < min_size:
                 continue
             clusts.append(binds[clust])
@@ -40,7 +40,7 @@ def reform_clusters(data, clust_ids, batch_ids):
     Returns:
         [np.ndarray]: (C) List of arrays of voxel IDs in each cluster
     """
-    return np.array([np.where((data[:,3] == batch_ids[j]) & (data[:,5] == clust_ids[j]))[0] for j in range(len(batch_ids))])
+    return np.array([np.where((data[:,3] == batch_ids[j]) & (data[:,-3] == clust_ids[j]))[0] for j in range(len(batch_ids))])
 
 
 def get_cluster_batch(data, clusts):
@@ -75,8 +75,8 @@ def get_cluster_label(data, clusts):
     """
     labels = []
     for c in clusts:
-        assert len(data[c,5].unique()) == 1
-        labels.append(int(data[c[0],5].item()))
+        assert len(data[c,-3].unique()) == 1
+        labels.append(int(data[c[0],-3].item()))
 
     return np.array(labels)
 
@@ -95,7 +95,7 @@ def get_cluster_group(data, clusts):
     """
     labels = []
     for c in clusts:
-        v, cts = data[c,6].unique(return_counts=True)
+        v, cts = data[c,-2].unique(return_counts=True)
         labels.append(int(v[cts.argmax()].item()))
 
     return np.array(labels)
