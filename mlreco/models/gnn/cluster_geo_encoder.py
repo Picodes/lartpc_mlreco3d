@@ -1,6 +1,50 @@
 # Geometric feature extractor for Cluster GNN
 import torch
+import math
 from mlreco.utils import local_cdist
+
+#ADDED
+def angle(a,b):
+    n1 = torch.norm(a, dim=0)
+    n2 = torch.norm(b, dim=0)
+    return math.acos(min(1,max(-1,torch.dot(a,b)/n1/n2)))
+
+
+
+def find_initial_features(x, v):
+    p = x.mv(v)
+    sp1 = x[torch.max(p, 0).indices.item()]
+    sp2 = x[torch.min(p, 0).indices.item()]
+    
+    m1 = 0.
+    m2 = 0.
+    
+    for point in x:
+        if(abs(torch.sum(point- sp1)) != 0) and (abs(torch.sum(point- sp2)) != 0):
+            m1 += min(angle(point-sp1, v),angle(point-sp1, -v))
+            m2 += min(angle(point-sp2, v),angle(point-sp2, -v))
+
+            #print(min(angle(point-sp1, v),angle(point-sp1, -v)),min(angle(point-sp2, v),angle(point-sp2, -v)))
+    
+    if (m1 < m2):
+        s = sp1
+        second = sp2
+    else :
+        s = sp2
+        second = sp1
+         
+    
+    speed = s - s
+    
+    count = 0
+    
+    for point in x:
+        if (torch.norm((point-s), dim=0)<10):
+            speed += (point-s)
+            count += 1
+    return s,speed/count
+    
+#END ADDED
 
 class ClustGeoNodeEncoder(torch.nn.Module):
     """
@@ -17,6 +61,11 @@ class ClustGeoNodeEncoder(torch.nn.Module):
 
         # Get the voxel set
         voxels = data[:,:3].float()
+        
+        #TRUE
+        add_data = data[:,4:10].float()
+        #END TRUE
+        
         dtype = voxels.dtype
         device = voxels.device
 
@@ -80,9 +129,23 @@ class ClustGeoNodeEncoder(torch.nn.Module):
 
             # Weight direction
             v0 = dirwt * v0
-
+            
             # Append (center, B.flatten(), v0, size)
-            feats.append(torch.cat((center, B.flatten(), v0, size)))
+            
+            # TRUE 
+            #z = add_data[c]
+            #z = z[0]
+            #z = [z[:3],z[3:]]
+            #feats.append(torch.cat((center, B.flatten(), v0, size, z[0],z[1])))
+            # END TRUE
+            
+            # COMPUTED 
+            z = find_initial_features(voxels[c], v0)
+            #print(z)
+            feats.append(torch.cat((center, B.flatten(), v0, size, z[0],z[1]))) #For not true
+            # END COMPUTED
+            
+            #feats.append(torch.cat((center, B.flatten(), v0, size)))
 
         return torch.stack(feats, dim=0)
 
