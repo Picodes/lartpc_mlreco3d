@@ -325,11 +325,52 @@ def parse_cluster3d_full(data):
         a numpy array with the shape (n,4) where 4 is voxel value,
         cluster id, group id and semantic type, respectively
     """
+    
+    parts = parse_particle_asis([data[1],data[0]])
+    
     cluster_event = data[0]
     particles_v = data[1].as_vector()
     meta = cluster_event.meta()
     num_clusters = cluster_event.as_vector().size()
     clusters_voxels, clusters_features = [], []
+    ### SHOULD BE FIXED AT SUPERA LEVEL LATER ###
+    group_ids = np.array([particles_v[i].group_id() for i in range(particles_v.size())])
+    nuclear_group = num_clusters + 1
+    for i, gid in enumerate(np.unique(group_ids)):
+        # If the group's parent is not EM or LE, proceed
+        if particles_v[int(gid)].shape() != 0 and particles_v[int(gid)].shape() != 4:
+            continue
+        # If the group's parent is nuclear activity, Delta or Michel, make it non primary
+        process = particles_v[int(gid)].creation_process()
+        parent_pdg_code = abs(particles_v[int(gid)].parent_pdg_code())
+        if 'Inelastic' in process or 'Capture' in process or parent_pdg_code == 13:
+            idxs = np.where(group_ids == gid)[0]
+            group_ids[idxs] = nuclear_group
+            nuclear_group += 1
+            continue
+        # Make the first (in time) non-empty cluster the true group ID
+        idxs = np.where(group_ids == gid)[0]
+        clust_times = np.array([particles_v[int(j)].first_step().t() for j in idxs])
+        nonempty = np.where([cluster_event.as_vector()[int(j)].as_vector().size() for j in idxs])[0]
+        if len(nonempty):
+            first_id = np.argmin(clust_times[nonempty])
+            group_ids[idxs] = idxs[nonempty][first_id]
+        # If the primary cluster is empty, make its direct children primaries
+        #clust_size = cluster_event.as_vector()[int(gid)].as_vector().size()
+        #if not clust_size:
+        #    idxs = np.where(group_ids == gid)[0]
+        #    for j in idxs:
+        #        if j != gid and cluster_event.as_vector()[int(j)].size():
+        #            particle = particles_v[int(j)]
+        #            group_id = particle.id()
+        #            while particle.parent_id() != gid:
+        #                parent_id = particle.parent_id()
+        #                particle = particles_v[parent_id]
+        #                if not cluster_event.as_vector()[parent_id].size():
+        #                    continue
+        #                group_id = particle.id()
+        #            group_ids[j] = group_id
+    #############################################
     for i in range(num_clusters):
         cluster = cluster_event.as_vector()[i]
         num_points = cluster.as_vector().size()
@@ -343,11 +384,34 @@ def parse_cluster3d_full(data):
             cluster_id = np.full(shape=(cluster.as_vector().size()),
                                  fill_value=particles_v[i].id(), dtype=np.float32)
             group_id = np.full(shape=(cluster.as_vector().size()),
-                               fill_value=particles_v[i].group_id(), dtype=np.float32)
+                               #fill_value=particles_v[i].group_id(), dtype=np.float32)
+                               fill_value=group_ids[i], dtype=np.float32)
             sem_type = np.full(shape=(cluster.as_vector().size()),
                                fill_value=particles_v[i].shape(), dtype=np.float32)
+            
+            #ADDED PART
+            x_init,y_init,z_init = parts[i].first_step().x(),parts[i].first_step().y(),parts[i].first_step().z()
+            speed = (parts[i].px()**2+parts[i].py()**2+parts[i].pz()**2)**0.5
+            speed_x,speed_y,speed_z = parts[i].px()/speed,parts[i].py()/speed,parts[i].pz()/speed
+  
+            x_feat = np.full(shape=(cluster.as_vector().size()),
+                                 fill_value=x_init, dtype=np.float32)
+            y_feat = np.full(shape=(cluster.as_vector().size()),
+                                 fill_value=y_init, dtype=np.float32)
+            z_feat = np.full(shape=(cluster.as_vector().size()),
+                                 fill_value=z_init, dtype=np.float32)
+            xs_feat = np.full(shape=(cluster.as_vector().size()),
+                                 fill_value=speed_x, dtype=np.float32)
+            ys_feat = np.full(shape=(cluster.as_vector().size()),
+                                 fill_value=speed_y, dtype=np.float32)
+            zs_feat = np.full(shape=(cluster.as_vector().size()),
+                                 fill_value=speed_z, dtype=np.float32)
+            #END OF ADDED PART
+            
             clusters_voxels.append(np.stack([x, y, z], axis=1))
-            clusters_features.append(np.column_stack([value,cluster_id,group_id,sem_type]))
+            #clusters_features.append(np.column_stack([value,cluster_id,group_id,sem_type]))
+            clusters_features.append(np.column_stack([x_feat,y_feat,z_feat,xs_feat,ys_feat,zs_feat,value,cluster_id,group_id,sem_type]))
+         
     np_voxels   = np.concatenate(clusters_voxels, axis=0)
     np_features = np.concatenate(clusters_features, axis=0)
     return np_voxels, np_features
