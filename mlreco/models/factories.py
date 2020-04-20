@@ -27,7 +27,11 @@ def model_dict():
     from . import clusternet
     from . import clustercnn_adaptis
     
-    from . import cnn_encoder
+    from . import autoencoder_32
+    from . import sparse_autoencoder
+    from . import sparse_autoencoder_32
+    from . import cnn_embedding
+    from . import cnn_geo_feat
 
 
     # Make some models available (not all of them, e.g. PPN is not standalone)
@@ -93,7 +97,12 @@ def model_dict():
         "flashmatching": (flashmatching_model.FlashMatchingModel, torch.nn.CrossEntropyLoss),
         # Cluster grouping GNN with MST
         #"cluster_mst_gnn": (cluster_mst_gnn.MSTEdgeModel, cluster_mst_gnn.MSTEdgeChannelLoss),
-        "cnn_encoder": (cnn_encoder.EncoderModel, cnn_encoder.EncoderModelLoss),
+        "cnn_embedding": (cnn_embedding.EncoderModel, cnn_embedding.EncoderModelLoss),
+        "cnn_geo_feat": (cnn_geo_feat.EncoderModel, cnn_geo_feat.EncoderModelLoss),
+        "autoencoder": (autoencoder_32.EncoderModel, autoencoder_32.EncoderModelLoss),
+        "sparse_autoencoder": (sparse_autoencoder.EncoderModel, sparse_autoencoder.EncoderModelLoss),
+        "sparse_autoencoder_32": (sparse_autoencoder_32.EncoderModel, sparse_autoencoder_32.EncoderModelLoss)
+        
     }
     # "chain_gnn": (chain_gnn.Chain, chain_gnn.ChainLoss)
     return models

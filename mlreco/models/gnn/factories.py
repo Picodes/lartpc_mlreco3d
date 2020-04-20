@@ -8,6 +8,9 @@ def edge_model_dict():
     """
 
     from . import modular_nnconv
+    from . import modular_GATConv
+    from . import modular_AGNNConv
+    from . import modular_EdgeConv
     from . import edge_attention
     from . import edge_attention2
     from . import edge_only
@@ -20,6 +23,9 @@ def edge_model_dict():
 
     models = {
         "modular_nnconv" : modular_nnconv.NNConvModel,
+        "modular_GATConv" : modular_GATConv.GATConvModel,
+        "modular_AGNNConv" : modular_AGNNConv.AGNNConvModel,
+        "modular_EdgeConv" : modular_EdgeConv.EdgeConvModel,
         "basic_attention" : edge_attention.BasicAttentionModel,
         "basic_attention2": edge_attention2.BasicAttentionModel,
         "edge_only" : edge_only.EdgeOnlyModel,
@@ -110,10 +116,12 @@ def node_encoder_dict():
     """
 
     from . import cluster_geo_encoder
+    from . import cluster_custom_encoder
     from . import cluster_cnn_encoder
 
     encoders = {
         "geo" : cluster_geo_encoder.ClustGeoNodeEncoder,
+        "custom" : cluster_custom_encoder.ClustCNNNodeEncoder,
         "cnn" : cluster_cnn_encoder.ClustCNNNodeEncoder
     }
 
@@ -135,10 +143,12 @@ def node_encoder_construct(cfg):
     encoders = node_encoder_dict()
     encoder_cfg = cfg['node_encoder']
     name = encoder_cfg['name']
+    if (name == "geo+cnn"):
+        return [encoders["cnn"](encoder_cfg),encoders["geo"](encoder_cfg)]
     if not name in encoders:
         raise Exception("Unknown node encoder name provided:", name)
 
-    return encoders[name](encoder_cfg)
+    return [encoders[name](encoder_cfg)]
 
 
 def edge_encoder_dict():
@@ -151,15 +161,16 @@ def edge_encoder_dict():
     """
 
     from . import cluster_geo_encoder
+    from . import cluster_custom_encoder
     from . import cluster_cnn_encoder
 
     encoders = {
         "geo" : cluster_geo_encoder.ClustGeoEdgeEncoder,
+        "custom" : cluster_custom_encoder.ClustCNNEdgeEncoder,
         "cnn" : cluster_cnn_encoder.ClustCNNEdgeEncoder
     }
 
     return encoders
-
 
 def edge_encoder_construct(cfg):
     """
@@ -176,7 +187,9 @@ def edge_encoder_construct(cfg):
     encoders = edge_encoder_dict()
     encoder_cfg = cfg['edge_encoder']
     name = encoder_cfg['name']
+    if (name == "geo+cnn"):
+        return [encoders["cnn"](encoder_cfg),encoders["geo"](encoder_cfg)]
     if not name in encoders:
         raise Exception("Unknown edge encoder name provided:", name)
-
-    return encoders[name](encoder_cfg)
+    
+    return [encoders[name](encoder_cfg)]

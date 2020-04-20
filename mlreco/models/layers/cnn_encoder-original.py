@@ -15,17 +15,16 @@ class EncoderModel(torch.nn.Module):
 
         # Take the parameters from the config
         self._dimension = model_config.get('dimension', 3)
-        self.num_strides = model_config.get('num_stride', 9)
+        self.num_strides = model_config.get('num_stride', 4)
         self.m =  model_config.get('feat_per_pixel', 4)
-        self.nInputFeatures = model_config.get('input_feat_enc', 1)
+        self.nInputFeatures = model_config.get('input_feat_enc', 4)
         self.leakiness = model_config.get('leakiness_enc', 0)
         self.spatial_size = model_config.get('inp_spatial_size', 1024) #Must be a power of 2
         self.feat_aug_mode = model_config.get('feat_aug_mode', 'constant')
         self.use_linear_output = model_config.get('use_linear_output', False)
         self.num_output_feats = model_config.get('num_output_feats', 64)
-        self.reps = model_config.get('reps', 2)  # Conv block repetition factor
 
-        self.out_spatial_size = int(self.spatial_size/2**(self.num_strides-1))
+        self.out_spatial_size = int(self.spatial_size/4**(self.num_strides-1))
         self.output = self.m*self.out_spatial_size**3
 
         nPlanes = [self.m for i in range(1, self.num_strides+1)]  # UNet number of features per level
@@ -35,22 +34,10 @@ class EncoderModel(torch.nn.Module):
             nPlanes = [self.m * pow(2, i) for i in range(self.num_strides)]
         elif self.feat_aug_mode != 'constant':
             raise ValueError('Feature augmentation mode not recognized')
-            
         kernel_size = 2
         downsample = [kernel_size, 2]  # [filter size, filter stride]
 
-        
-        def block(m, a, b):  # ResNet style blocks
-            m.add(scn.ConcatTable()
-                  .add(scn.Identity() if a == b else scn.NetworkInNetwork(a, b, False))
-                  .add(scn.Sequential()
-                    .add(scn.BatchNormLeakyReLU(a, leakiness=self.leakiness))
-                    .add(scn.SubmanifoldConvolution(self._dimension, a, b, 3, False))
-                    .add(scn.BatchNormLeakyReLU(b, leakiness=self.leakiness))
-                    .add(scn.SubmanifoldConvolution(self._dimension, b, b, 3, False)))
-             ).add(scn.AddTable())
 
-            
         #Input for tpc voxels
         self.input = scn.Sequential().add(
            scn.InputLayer(self._dimension, self.spatial_size, mode=3)).add(
@@ -59,22 +46,18 @@ class EncoderModel(torch.nn.Module):
 
         # Encoding TPC
         self.bn = scn.BatchNormLeakyReLU(nPlanes[0], leakiness=self.leakiness)
-        self.encoding_block = scn.Sequential()
         self.encoding_conv = scn.Sequential()
-        module = scn.Sequential()
         for i in range(self.num_strides):
-            module = scn.Sequential()
-            for _ in range(self.reps):
-                block(module, nPlanes[i], nPlanes[i])
-            self.encoding_block.add(module)
             module2 = scn.Sequential()
             if i < self.num_strides-1:
                 module2.add(
                     scn.BatchNormLeakyReLU(nPlanes[i], leakiness=self.leakiness)).add(
                     scn.Convolution(self._dimension, nPlanes[i], nPlanes[i+1],
-                        downsample[0], downsample[1], False))
+                        downsample[0], downsample[1], False)).add(
+                    scn.AveragePooling(self._dimension, 2, 2))
+
             self.encoding_conv.add(module2)
-        self.encoding = module
+
         self.output = scn.Sequential().add(
            scn.SparseToDense(self._dimension,nPlanes[-1]))
 
@@ -85,23 +68,17 @@ class EncoderModel(torch.nn.Module):
     def forward(self, point_cloud):
         # We separate the coordinate tensor from the feature tensor
         coords = point_cloud[:, 0:self._dimension+1].float()
-        features = point_cloud[:, self._dimension+1:].float()
+        features = torch.cat((point_cloud[:, 0:self._dimension].float(),point_cloud[:, self._dimension+1:].float()),1)
 
         x = self.input((coords, features))
-
+        
         # We send x through all the encoding layers
         feature_maps = [x]
         feature_ppn = [x]
-        feature_maps = [x]
-        feature_ppn = [x]
-        for i, layer in enumerate(self.encoding_block):
-            x = self.encoding_block[i](x)
-            feature_maps.append(x)
+        for i, layer in enumerate(self.encoding_conv):
             x = self.encoding_conv[i](x)
-            feature_ppn.append(x)
-        
+
         x = self.output(x)
-        print(x.size())
 
         #Then we flatten the vector
         x = x.view(-1,(x.size()[2]*x.size()[2]*x.size()[2]*x.size()[1]))

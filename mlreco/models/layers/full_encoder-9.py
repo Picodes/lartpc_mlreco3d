@@ -59,7 +59,7 @@ class EncoderLayer(torch.nn.Module):
         self.use_linear_output = model_config.get('use_linear_output', False)
         self.num_output_feats = model_config.get('num_output_feats', 64)
         
-        self.num_strides = model_config.get('num_stride', 3) #Layers until the size is 4**d
+        self.num_strides = model_config.get('num_stride', 9) #Layers until the size is 4**d
         
         self.kernel_size = model_config.get('kernel_size', 2)
         
@@ -69,9 +69,9 @@ class EncoderLayer(torch.nn.Module):
 
         nPlanes = [self.m for i in range(1, self.num_strides+1)]  # UNet number of features per level
         if self.feat_aug_mode == 'linear':
-            nPlanes = [4,8,16]
+            nPlanes = [4,8,16,32,64,64,64,128,256]
         elif self.feat_aug_mode == 'custom':
-            nPlanes = [4,8,16]
+            nPlanes = [4,8,16,32,64,64,64,128,256]
         elif self.feat_aug_mode != 'constant':
             raise ValueError('Feature augmentation mode not recognized')
         
@@ -179,7 +179,6 @@ class EncoderLayer(torch.nn.Module):
         dec_feature_sparse = []
         for i, layer in enumerate(self.decoding_conv1):
             x = self.decoding_conv1[i](x)
-            #dec_feature_maps.append(x)
             dec_feature_maps.append(x)
             x = self.sparsify(x)
             dec_feature_sparse.append(x)

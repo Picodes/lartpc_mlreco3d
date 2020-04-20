@@ -16,6 +16,7 @@ from sparseconvnet.sequential import Sequential
 from sparseconvnet.activations import Sigmoid
 from sparseconvnet.networkInNetwork import NetworkInNetwork
 
+
 class SparsifyFCS(Module):
     """
     Sparsify by looking at the first feature channel's sign.
@@ -54,12 +55,12 @@ class EncoderLayer(torch.nn.Module):
         self.m =  model_config.get('feat_per_pixel', 4)
         self.nInputFeatures = model_config.get('input_feat_enc', 1)
         self.leakiness = model_config.get('leakiness_enc', 0)
-        self.spatial_size = model_config.get('inp_spatial_size', 1024) #Must be a power of 2
+        self.spatial_size = model_config.get('inp_spatial_size', 32) #Must be a power of 2
         self.feat_aug_mode = model_config.get('feat_aug_mode', 'custom')
         self.use_linear_output = model_config.get('use_linear_output', False)
         self.num_output_feats = model_config.get('num_output_feats', 64)
         
-        self.num_strides = model_config.get('num_stride', 3) #Layers until the size is 4**d
+        self.num_strides = model_config.get('num_stride', 4) #Layers until the size is 4**d
         
         self.kernel_size = model_config.get('kernel_size', 2)
         
@@ -68,15 +69,18 @@ class EncoderLayer(torch.nn.Module):
         
 
         nPlanes = [self.m for i in range(1, self.num_strides+1)]  # UNet number of features per level
+        
+        nPlanes = [self.m for i in range(1, self.num_strides+1)]  # UNet number of features per level
         if self.feat_aug_mode == 'linear':
-            nPlanes = [4,8,16]
+            nPlanes = [self.m * i for i in range(1, self.num_strides + 1)]
         elif self.feat_aug_mode == 'custom':
-            nPlanes = [4,8,16]
+            nPlanes = [4,8,16,16,16]
+        elif self.feat_aug_mode == 'power':
+            nPlanes = [self.m * pow(2, i) for i in range(self.num_strides)]
         elif self.feat_aug_mode != 'constant':
             raise ValueError('Feature augmentation mode not recognized')
         
         downsample = [self.kernel_size, 2]  # [filter size, filter stride]
-
         
         #Input for tpc voxels
         self.input = scn.Sequential().add(
@@ -131,16 +135,7 @@ class EncoderLayer(torch.nn.Module):
         self.output = scn.Sequential().add(
            scn.SubmanifoldConvolution(self._dimension, self.m, self.nInputFeatures, 3, False))
         
-    def forward(self, data, clusts):
-        # Use cluster ID as a batch ID, pass through CNN
-        device = data.device
-        cnn_data = torch.empty((0,5), device=device, dtype=torch.float)
-        for i, c in enumerate(clusts):
-            cnn_data = torch.cat((cnn_data, data[c,:5].float()))
-            cnn_data[-len(c):,3] = i*torch.ones(len(c)).to(device)
-            cnn_data[-len(c):,4] = torch.ones(len(c)).to(device)
-
-            
+    def forward(self, cnn_data):
         # We separate the coordinate tensor from the feature tensor
         coords = cnn_data[:, 0:self._dimension+1].float()
         batchs = cnn_data[:, self._dimension].float()
@@ -163,15 +158,10 @@ class EncoderLayer(torch.nn.Module):
         for i, layer in enumerate(self.encoding_conv):
             feature_maps.append(x)
             x = self.encoding_conv[i](x)
-
-        print("Encoding: ", x.spatial_size)
         
         hidden_x = self.to_dense(x)
-        print("Hidden layer: ", hidden_x.size())
         
         hidden_x = hidden_x.view(-1,((hidden_x.size()[2]**3)*hidden_x.size()[1]))
-        
-        print("Hidden layer: ", hidden_x.size())
         #print(hidden_x[0])
         #print(hidden_x)
         
@@ -186,14 +176,9 @@ class EncoderLayer(torch.nn.Module):
             x = self.decoding_conv2[i](x)
             #print("Decoding: ", x.spatial_size)
             #print(x)
-            
-        print(x.requires_grad)
         
         x = self.output(x)
         #print("Final size: ", x.spatial_size)
-        
-        print(x.requires_grad)
-        print(initial_sparse.requires_grad)
         
         return hidden_x, x, self.input((coords, features)), feature_maps, dec_feature_maps, dec_feature_sparse
         

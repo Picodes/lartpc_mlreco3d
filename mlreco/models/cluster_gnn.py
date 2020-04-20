@@ -8,7 +8,6 @@ from .gnn import edge_model_construct, node_encoder_construct, edge_encoder_cons
 from .layers.dbscan import DBScanClusts2
 from mlreco.utils.gnn.cluster import form_clusters, get_cluster_label, get_cluster_batch, get_cluster_group
 from mlreco.utils.gnn.network import complete_graph, delaunay_graph, mst_graph, bipartite_graph, inter_cluster_distance, get_fragment_edges
-from . import cnn_encoder
 from mlreco.utils.gnn.evaluation import edge_assignment, edge_assignment_from_graph
 from mlreco.utils import local_cdist
 
@@ -66,8 +65,20 @@ class ClustEdgeGNN(torch.nn.Module):
             self.dbscan = DBScanClusts2(cfg)
 
         # Initialize encoders
-        self.node_encoder = node_encoder_construct(cfg)
-        self.edge_encoder = edge_encoder_construct(cfg)
+        self.node_encoder_array = node_encoder_construct(cfg)
+        self.edge_encoder_array = edge_encoder_construct(cfg)
+        
+        self.node_concatenate = False
+        self.node_encoder = self.node_encoder_array[0]
+        if (len(self.node_encoder_array) > 1):
+            self.node_concatenate = True
+            self.node_encoder2 = self.node_encoder_array[1]
+        
+        self.edge_concatenate = False
+        self.edge_encoder = self.edge_encoder_array[0]
+        if (len(self.edge_encoder_array) > 1):
+            self.edge_concatenate = True
+            self.edge_encoder2 = self.edge_encoder_array[1]
 
         # Construct the model
         self.edge_predictor = edge_model_construct(cfg)
@@ -134,8 +145,15 @@ class ClustEdgeGNN(torch.nn.Module):
             return {}
 
         # Obtain node and edge features
-        x = self.node_encoder(data, clusts)
-        e = self.edge_encoder(data, clusts, edge_index)
+        if (self.node_concatenate):
+            x = torch.cat((self.node_encoder(data, clusts),self.node_encoder2(data, clusts)),1)
+        else :
+            x = self.node_encoder(data, clusts)
+            
+        if (self.edge_concatenate):
+            e = torch.cat((self.edge_encoder(data, clusts, edge_index),self.edge_encoder2(data, clusts, edge_index)),1)
+        else :
+            e = self.edge_encoder(data, clusts, edge_index)
 
         # Bring edge_index and batch_ids to device
         index = torch.tensor(edge_index, device=device, dtype=torch.long)
