@@ -8,7 +8,7 @@ from .gnn import edge_model_construct
 from mlreco.utils.gnn.cluster import form_clusters, reform_clusters, get_cluster_batch, get_cluster_label, get_cluster_group, get_cluster_primary
 from mlreco.utils.gnn.network import bipartite_graph, inter_cluster_distance, get_fragment_edges
 from mlreco.utils.gnn.data import cluster_vtx_features, cluster_edge_features
-from mlreco.utils.gnn.evaluation import edge_assignment, edge_assignment_from_graph, clustering_metrics, node_assignment_group
+from mlreco.utils.gnn.evaluation import edge_assignment, edge_assignment_from_graph, clustering_metrics
 
 class IterativeEdgeModel(torch.nn.Module):
     """
@@ -41,10 +41,7 @@ class IterativeEdgeModel(torch.nn.Module):
         super(IterativeEdgeModel, self).__init__()
 
         # Get the model input parameters
-        if 'modules' in cfg:
-            self.model_config = cfg['modules']['iter_edge_model']
-        else:
-            self.model_config = cfg
+        self.model_config = cfg['iter_edge_model']
 
         # Choose what type of node to use
         self.node_type = self.model_config.get('node_type', 0)
@@ -246,10 +243,7 @@ class IterEdgeChannelLoss(torch.nn.Module):
         super(IterEdgeChannelLoss, self).__init__()
 
         # Get the model input parameters
-        if 'modules' in cfg:
-            self.model_config = cfg['modules']['iter_edge_model']
-        else:
-            self.model_config = cfg
+        self.model_config = cfg
 
         # Set the loss
         self.loss = self.model_config.get('loss', 'CE')
@@ -268,7 +262,7 @@ class IterEdgeChannelLoss(torch.nn.Module):
 
     def forward(self, out, clusters, graph):
         """
-        Applies the requested loss on the edge prediction. 
+        Applies the requested loss on the edge prediction.
 
         Args:
             out (dict):
@@ -277,12 +271,11 @@ class IterEdgeChannelLoss(torch.nn.Module):
                 'batch_ids' (np.ndarray)  : (C) Cluster batch ids
                 'edge_index' (np.ndarray) : (2,E) Incidence matrix
             clusters ([torch.tensor])     : (N,8) [x, y, z, batchid, value, id, groupid, shape]
-            graph ([torch.tensor])        : (N,3) True edges 
+            graph ([torch.tensor])        : (N,3) True edges
         Returns:
             double: loss, accuracy, clustering metrics
         """
         total_loss, total_acc = 0., 0.
-        total_ari, total_ami, total_sbd, total_pur, total_eff = 0., 0., 0., 0., 0.
         total_iter = 0
         ngpus = len(clusters)
         out['group_ids'] = []
@@ -334,24 +327,8 @@ class IterEdgeChannelLoss(torch.nn.Module):
                 # Increment accuracy of assignment (fraction of correctly assigned edges)
                 total_acc += torch.sum(torch.argmax(edge_pred, dim=1) == edge_assn).float()/edge_assn.shape[0]
 
-            # Get clustering metrics
-            node_assn = node_assignment_group(group_ids, batch_ids)
-            node_pred = out['matched'][i]
-            ari, ami, sbd, pur, eff = clustering_metrics(clusts, node_assn, node_pred)
-            total_ari += ari
-            total_ami += ami
-            total_sbd += sbd
-            total_pur += pur
-            total_eff += eff
-
         return {
-            'ARI': total_ari/ngpus,
-            'AMI': total_ami/ngpus,
-            'SBD': total_sbd/ngpus,
-            'purity': total_pur/ngpus,
-            'efficiency': total_eff/ngpus,
             'accuracy': total_acc/max(1,total_iter),
             'loss': total_loss/ngpus,
             'n_iter': total_iter
         }
-
