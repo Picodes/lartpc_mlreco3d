@@ -24,6 +24,7 @@ def model_dict():
     from . import clustercnn_single
     from . import clustercnn_se
     from . import clustercnn_density
+    from . import sparse_autoencoder
 
     from . import clusternet
     from . import clustercnn_adaptis
@@ -96,7 +97,8 @@ def model_dict():
         # Flashmatching using encoder and gnn
         "flashmatching": (flashmatching_model.FlashMatchingModel, torch.nn.CrossEntropyLoss(reduction='mean')),
         # CNN Clustering + GNN Chain
-        "full_chain": (full_chain.FullChain, full_chain.FullChainLoss)
+        "full_chain": (full_chain.FullChain, full_chain.FullChainLoss),
+        "sparse_autoencoder": (sparse_autoencoder.EncoderModel, sparse_autoencoder.EncoderModelLoss)
         # Cluster grouping GNN with MST
         #"cluster_mst_gnn": (cluster_mst_gnn.MSTEdgeModel, cluster_mst_gnn.MSTEdgeChannelLoss),
     }

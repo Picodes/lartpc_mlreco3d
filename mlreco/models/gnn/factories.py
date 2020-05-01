@@ -123,12 +123,14 @@ def node_encoder_dict():
     from . import cluster_cnn_encoder
     from . import cluster_mix_encoder
     from . import cluster_gnn_encoder
+    from . import cluster_sparse_encoder
 
     encoders = {
         "geo" : cluster_geo_encoder.ClustGeoNodeEncoder,
         "cnn" : cluster_cnn_encoder.ClustCNNNodeEncoder,
         "mix" : cluster_mix_encoder.ClustMixNodeEncoder,
-        "gnn" : cluster_gnn_encoder.ClustGNNNodeEncoder
+        "gnn" : cluster_gnn_encoder.ClustGNNNodeEncoder,
+        "sparse" : cluster_sparse_encoder.ClustSparseNodeEncoder
     }
 
     return encoders
@@ -168,12 +170,14 @@ def edge_encoder_dict():
     from . import cluster_cnn_encoder
     from . import cluster_mix_encoder
     from . import cluster_gnn_encoder
+    from . import cluster_sparse_encoder
 
     encoders = {
         "geo" : cluster_geo_encoder.ClustGeoEdgeEncoder,
         "cnn" : cluster_cnn_encoder.ClustCNNEdgeEncoder,
         "mix" : cluster_mix_encoder.ClustMixEdgeEncoder,
-        "gnn" : cluster_gnn_encoder.ClustGNNEdgeEncoder
+        "gnn" : cluster_gnn_encoder.ClustGNNEdgeEncoder,
+        "sparse": cluster_sparse_encoder.ClustSparseEdgeEncoder
     }
 
     return encoders
