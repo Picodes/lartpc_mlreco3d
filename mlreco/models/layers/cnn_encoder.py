@@ -15,24 +15,29 @@ class EncoderModel(torch.nn.Module):
         # Take the parameters from the config
         self._dimension = model_config.get('dimension', 3)
         self.num_strides = model_config.get('num_stride', 4)
-        self.m =  model_config.get('feat_per_pixel', 4)
+        self.m =  model_config.get('feat_per_pixel', 4) #Number of features before sending the image into encoder
         self.nInputFeatures = model_config.get('input_feat_enc', 1)
-        self.leakiness = model_config.get('leakiness_enc', 0)
-        self.spatial_size = model_config.get('inp_spatial_size', 1024) #Must be a power of 2
-        self.feat_aug_mode = model_config.get('feat_aug_mode', 'constant')
-        self.use_linear_output = model_config.get('use_linear_output', False)
+        self.leakiness = model_config.get('leakiness_enc', 0) #Leakiness of the Leaky Relu layers
+        self.spatial_size = model_config.get('inp_spatial_size', 1024)
+        #Way of augmenting features between the strides
+        self.feat_aug_mode = model_config.get('feat_aug_mode', 'constant') #Constant, linear or power
+        self.use_linear_output = model_config.get('use_linear_output', False) #Add linear layers at the end of the decoder
         self.num_output_feats = model_config.get('num_output_feats', 64)
 
         self.out_spatial_size = int(self.spatial_size/4**(self.num_strides-1))
         self.output = self.m*self.out_spatial_size**3
-
         nPlanes = [self.m for i in range(1, self.num_strides+1)]  # UNet number of features per level
+        
+        #Setting of the augmentation features mode
         if self.feat_aug_mode == 'linear':
             nPlanes = [self.m * i for i in range(1, self.num_strides + 1)]
         elif self.feat_aug_mode == 'power':
             nPlanes = [self.m * pow(2, i) for i in range(self.num_strides)]
         elif self.feat_aug_mode != 'constant':
             raise ValueError('Feature augmentation mode not recognized')
+            
+            
+            
         kernel_size = 2
         downsample = [kernel_size, 2]  # [filter size, filter stride]
 
